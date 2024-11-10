@@ -1,5 +1,4 @@
 // Program.cs
-using PriceGuessingGame.Managers;
 using PriceGuessingGame.Models;
 using PriceGuessingGame.Services;
 using System;
@@ -7,6 +6,9 @@ using System.Xml.Serialization;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using PriceGuessingGame.Services.PriceGuessingGame.Managers;
+using System.Net.NetworkInformation;
+
 
 namespace PriceGuessingGame
 {
@@ -14,15 +16,25 @@ namespace PriceGuessingGame
     {
         static void Main(string[] args)
         {
-            Console.OutputEncoding = Encoding.UTF8;
             try
             {
+                Console.OutputEncoding = Encoding.UTF8;
+
+                // Khởi tạo GameManager
                 GameManager gameManager = new GameManager();
+
+                // Bắt đầu game
                 gameManager.StartGame();
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Lỗi khởi động chương trình: {ex.Message}");
+                Console.WriteLine($"Lỗi nghiêm trọng: {ex.Message}");
+                Console.WriteLine("Ứng dụng sẽ đóng sau 5 giây...");
+                System.Threading.Thread.Sleep(5000);
+            }
+            finally
+            {
+                Console.WriteLine("\nCảm ơn bạn đã chơi game!");
             }
         }
     }
@@ -219,7 +231,7 @@ namespace PriceGuessingGame.Models
 
                 if (!correct)
                 {
-                    Console.WriteLine($"\nĐáp án đúng là: {product.Price:N0} VND");
+                   // Console.WriteLine($"\nĐáp án đúng là: {product.Price:N0} VND");
                     Console.WriteLine("Nhấn Enter để tiếp tục...");
                     Console.ReadLine();
                 }
@@ -716,18 +728,38 @@ namespace PriceGuessingGame.Services
 
         public void SavePlayer(Player player)
         {
-            _currentPlayer = player;
+            // Lưu lại giá trị cũ để phục hồi nếu cần
+            Player previousPlayer = _currentPlayer;
+
             try
             {
+                // Cập nhật current player chỉ khi chắc chắn lưu file thành công
                 XmlSerializer serializer = new XmlSerializer(typeof(Player));
                 using (FileStream fs = new FileStream(_playerFilePath, FileMode.Create))
                 {
                     serializer.Serialize(fs, player);
                 }
+
+                // Nếu lưu file thành công thì mới cập nhật _currentPlayer
+                _currentPlayer = player;
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                // Lỗi quyền truy cập
+                Console.WriteLine($"Không có quyền truy cập để lưu file: {ex.Message}");
+                _currentPlayer = previousPlayer; // Phục hồi giá trị cũ
+            }
+            catch (IOException ex)
+            {
+                // Lỗi IO
+                Console.WriteLine($"Lỗi khi thao tác với file: {ex.Message}");
+                _currentPlayer = previousPlayer; // Phục hồi giá trị cũ
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Lỗi khi lưu thông tin người chơi: {ex.Message}");
+                // Các lỗi khác
+                //Console.WriteLine($"Lỗi khi lưu thông tin người chơi: {ex.Message}");
+                _currentPlayer = previousPlayer; // Phục hồi giá trị cũ
             }
         }
 
@@ -770,123 +802,192 @@ namespace PriceGuessingGame.Services
             SavePlayer(_currentPlayer);
         }
     }
-}
 
-// Managers/GameManager.cs
+    // Managers/GameManager.cs
 
-namespace PriceGuessingGame.Managers
-{
-    public class GameManager
+    // Managers/GameManager.cs
+    namespace PriceGuessingGame.Managers
     {
-        private readonly IGameService _gameService;
-        private readonly IScoreManager _scoreManager;
-        private readonly IPlayerManager _playerManager;
-        private readonly Player _currentPlayer;
-
-        public GameManager()
+        public class GameManager
         {
-            IDataService dataService = new FileDataService();
-            _scoreManager = new ScoreManager();
-            _playerManager = new PlayerManager();
-            _gameService = new GameService(dataService, _scoreManager, _playerManager);
-            _currentPlayer = _playerManager.GetCurrentPlayer();
-        }
+            private readonly IGameService _gameService;
+            private readonly IScoreManager _scoreManager;
+            private readonly IPlayerManager _playerManager;
+            private readonly IDataService _dataService;
+            private Player _currentPlayer;
 
-        public void StartGame()
-        {
-            while (true)
+            public GameManager()
             {
-                ShowMenu();
-                string choice = Console.ReadLine();
-
-                switch (choice)
+                try
                 {
-                    case "1":
-                        _gameService.PlayGame(new EasyLevel());
-                        break;
-                    case "2":
-                        _gameService.PlayGame(new MediumLevel());
-                        break;
-                    case "3":
-                        _gameService.PlayGame(new HardLevel());
-                        break;
-                    case "4":
-                        ShowHighScores();
-                        break;
-                    case "5":
-                        ShowPlayerStats();
-                        break;
-                    case "6":
-                        if (ConfirmExit())
-                            return;
-                        break;
-                    default:
-                        Console.WriteLine("\nLựa chọn không hợp lệ!");
-                        Console.WriteLine("Nhấn Enter để tiếp tục...");
-                        Console.ReadLine();
-                        break;
+                    // Khởi tạo các services theo thứ tự phụ thuộc
+                    _dataService = new FileDataService();
+                    _scoreManager = new ScoreManager();
+                    _playerManager = new PlayerManager();
+                    _gameService = new GameService(_dataService, _scoreManager, _playerManager);
+
+                    // Lấy thông tin người chơi hiện tại
+                    _currentPlayer = _playerManager.GetCurrentPlayer();
+
+                    if (_currentPlayer == null)
+                    {
+                        throw new InvalidOperationException("Không thể khởi tạo thông tin người chơi");
+                    }
                 }
-            }
-        }
-
-        private void ShowMenu()
-        {
-            Console.Clear();
-            Console.WriteLine($"=== HÃY CHỌN GIÁ ĐÚNG ===");
-            Console.WriteLine($"Xin chào, {_currentPlayer.Name}!\n");
-            Console.WriteLine("1. Chơi mức Dễ (3 sản phẩm)");
-            Console.WriteLine("2. Chơi mức Vừa (5 sản phẩm)");
-            Console.WriteLine("3. Chơi mức Khó (8 sản phẩm)");
-            Console.WriteLine("4. Xem điểm cao");
-            Console.WriteLine("5. Xem thống kê");
-            Console.WriteLine("6. Thoát");
-            Console.Write("\nNhập lựa chọn của bạn: ");
-        }
-
-        private void ShowHighScores()
-        {
-            Console.Clear();
-            Console.WriteLine("=== BẢNG XẾP HẠNG ĐIỂM CAO ===\n");
-            List<int> highScores = _scoreManager.GetHighScores();
-
-            if (highScores.Count == 0)
-            {
-                Console.WriteLine("Chưa có điểm cao nào!");
-            }
-            else
-            {
-                for (int i = 0; i < highScores.Count; i++)
+                catch (Exception ex)
                 {
-                    Console.WriteLine($"{i + 1}. {highScores[i]} điểm");
+                    throw new InvalidOperationException($"Lỗi khởi tạo GameManager: {ex.Message}", ex);
                 }
             }
 
-            Console.WriteLine("\nNhấn Enter để tiếp tục...");
-            Console.ReadLine();
-        }
+            public void StartGame()
+            {
+                bool continueGame = true;
 
-        private void ShowPlayerStats()
-        {
-            // Lấy thông tin người chơi mới nhất
-            Player currentPlayer = _playerManager.GetCurrentPlayer();
+                while (continueGame)
+                {
+                    try
+                    {
+                        ShowMenu();
+                        string choice = Console.ReadLine()?.Trim();
 
-            Console.Clear();
-            Console.WriteLine($"=== THỐNG KÊ NGƯỜI CHƠI ===\n");
-            Console.WriteLine($"Tên người chơi: {currentPlayer.Name}");
-            Console.WriteLine($"Số lần chơi: {currentPlayer.GamesPlayed}");
-            Console.WriteLine($"Tổng điểm: {currentPlayer.TotalScore}");
-            Console.WriteLine($"Điểm trung bình: {currentPlayer.AverageScore:F2}");
+                        switch (choice)
+                        {
+                            case "1":
+                                PlayLevel(new EasyLevel());
+                                break;
+                            case "2":
+                                PlayLevel(new MediumLevel());
+                                break;
+                            case "3":
+                                PlayLevel(new HardLevel());
+                                break;
+                            case "4":
+                                ShowHighScores();
+                                break;
+                            case "5":
+                                ShowPlayerStats();
+                                break;
+                            case "6":
+                                continueGame = !ConfirmExit();
+                                break;
+                            default:
+                                ShowInvalidChoice();
+                                break;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        HandleGameError(ex);
+                    }
+                }
+            }
 
-            Console.WriteLine("\nNhấn Enter để tiếp tục...");
-            Console.ReadLine();
-        }
+            private void PlayLevel(GameLevel level)
+            {
+                try
+                {
+                    _gameService.PlayGame(level);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"\nLỗi khi chơi game: {ex.Message}");
+                    Console.WriteLine("Nhấn Enter để tiếp tục...");
+                    Console.ReadLine();
+                }
+            }
 
-        private bool ConfirmExit()
-        {
-            Console.Clear();
-            Console.Write("Bạn có chắc muốn thoát game? (Y/N): ");
-            string response = Console.ReadLine().Trim().ToUpper();
-            return response == "Y";
+            private void ShowMenu()
+            {
+                Console.Clear();
+                Console.WriteLine($"=== HÃY CHỌN GIÁ ĐÚNG ===");
+                Console.WriteLine($"Xin chào, {_currentPlayer.Name}!\n");
+                Console.WriteLine("1. Chơi mức Dễ (3 sản phẩm)");
+                Console.WriteLine("2. Chơi mức Vừa (5 sản phẩm)");
+                Console.WriteLine("3. Chơi mức Khó (8 sản phẩm)");
+                Console.WriteLine("4. Xem điểm cao");
+                Console.WriteLine("5. Xem thống kê");
+                Console.WriteLine("6. Thoát");
+                Console.Write("\nNhập lựa chọn của bạn: ");
+            }
+
+            private void ShowHighScores()
+            {
+                try
+                {
+                    Console.Clear();
+                    Console.WriteLine("=== BẢNG XẾP HẠNG ĐIỂM CAO ===\n");
+                    List<int> highScores = _scoreManager.GetHighScores();
+
+                    if (highScores.Count == 0)
+                    {
+                        Console.WriteLine("Chưa có điểm cao nào!");
+                    }
+                    else
+                    {
+                        for (int i = 0; i < highScores.Count; i++)
+                        {
+                            Console.WriteLine($"{i + 1}. {highScores[i]} điểm");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"\nLỗi khi hiển thị điểm cao: {ex.Message}");
+                }
+                finally
+                {
+                    Console.WriteLine("\nNhấn Enter để tiếp tục...");
+                    Console.ReadLine();
+                }
+            }
+
+            private void ShowPlayerStats()
+            {
+                try
+                {
+                    // Lấy thông tin người chơi mới nhất
+                    _currentPlayer = _playerManager.GetCurrentPlayer();
+
+                    Console.Clear();
+                    Console.WriteLine($"=== THỐNG KÊ NGƯỜI CHƠI ===\n");
+                    Console.WriteLine($"Tên người chơi: {_currentPlayer.Name}");
+                    Console.WriteLine($"Số lần chơi: {_currentPlayer.GamesPlayed}");
+                    Console.WriteLine($"Tổng điểm: {_currentPlayer.TotalScore}");
+                    Console.WriteLine($"Điểm trung bình: {_currentPlayer.AverageScore:F2}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"\nLỗi khi hiển thị thống kê: {ex.Message}");
+                }
+                finally
+                {
+                    Console.WriteLine("\nNhấn Enter để tiếp tục...");
+                    Console.ReadLine();
+                }
+            }
+
+            private void ShowInvalidChoice()
+            {
+                Console.WriteLine("\nLựa chọn không hợp lệ!");
+                Console.WriteLine("Nhấn Enter để tiếp tục...");
+                Console.ReadLine();
+            }
+
+            private void HandleGameError(Exception ex)
+            {
+                Console.WriteLine($"\nCó lỗi xảy ra: {ex.Message}");
+                Console.WriteLine("Nhấn Enter để tiếp tục...");
+                Console.ReadLine();
+            }
+
+            private bool ConfirmExit()
+            {
+                Console.Clear();
+                Console.Write("Bạn có chắc muốn thoát game? (Y/N): ");
+                string response = Console.ReadLine()?.Trim().ToUpper() ?? "N";
+                return response == "Y";
+            }
         }
     }
 }
