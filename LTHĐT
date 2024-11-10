@@ -75,6 +75,7 @@ namespace PriceGuessingGame.Models
         protected int NumberOfProducts;
         protected string LevelName;
         protected int MaxAttempts;
+        protected Random random;
 
         public GameLevel(string levelName, int numberOfProducts, int maxAttempts)
         {
@@ -82,6 +83,7 @@ namespace PriceGuessingGame.Models
             NumberOfProducts = numberOfProducts;
             MaxAttempts = maxAttempts;
             Products = new List<Product>();
+            random = new Random();
         }
 
         public abstract void Initialize(List<Product> allProducts);
@@ -89,7 +91,6 @@ namespace PriceGuessingGame.Models
 
         protected void ShuffleProducts()
         {
-            Random random = new Random();
             int n = Products.Count;
             while (n > 1)
             {
@@ -100,11 +101,42 @@ namespace PriceGuessingGame.Models
                 Products[n] = temp;
             }
         }
+
+        protected List<decimal> GenerateRandomPrices(decimal correctPrice, decimal minPrice, decimal maxPrice, int count)
+        {
+            var prices = new List<decimal> { correctPrice };
+
+            while (prices.Count < count)
+            {
+                // Tạo giá ngẫu nhiên trong khoảng ±30% của giá đúng
+                decimal randomPrice;
+                do
+                {
+                    double percentage = random.NextDouble() * 0.6 - 0.3; // -30% to +30%
+                    randomPrice = correctPrice * (1 + (decimal)percentage);
+                    // Làm tròn đến hàng nghìn
+                    randomPrice = Math.Round(randomPrice / 1000) * 1000;
+                } while (prices.Contains(randomPrice) || randomPrice < minPrice || randomPrice > maxPrice);
+
+                prices.Add(randomPrice);
+            }
+
+            // Xáo trộn các giá
+            int n = prices.Count;
+            while (n > 1)
+            {
+                n--;
+                int k = random.Next(n + 1);
+                decimal temp = prices[k];
+                prices[k] = prices[n];
+                prices[n] = temp;
+            }
+
+            return prices;
+        }
     }
 }
-
 // Models/EasyLevel.cs
-
 namespace PriceGuessingGame.Models
 {
     public class EasyLevel : GameLevel
@@ -119,8 +151,7 @@ namespace PriceGuessingGame.Models
             }
 
             Products.Clear();
-            Random random = new Random();
-            List<int> selectedIndices = new List<int>();
+            var selectedIndices = new List<int>();
 
             while (Products.Count < NumberOfProducts)
             {
@@ -143,28 +174,31 @@ namespace PriceGuessingGame.Models
             Console.WriteLine($"Bạn có {MaxAttempts} lượt cho mỗi sản phẩm\n");
 
             int score = 0;
-            List<decimal> prices = Products.ConvertAll(p => p.Price);
 
-            for (int i = 0; i < Products.Count; i++)
+            foreach (var product in Products)
             {
                 int attempts = 0;
                 bool correct = false;
+                decimal minPrice = product.Price * 0.7m;
+                decimal maxPrice = product.Price * 1.3m;
+
+                var prices = GenerateRandomPrices(product.Price, minPrice, maxPrice, 3);
 
                 while (attempts < MaxAttempts && !correct)
                 {
-                    Console.WriteLine($"\nSản phẩm {i + 1}: {Products[i].Name}");
+                    Console.WriteLine($"\nSản phẩm: {product.Name}");
                     Console.WriteLine("Các mức giá (VND):");
 
-                    for (int j = 0; j < prices.Count; j++)
+                    for (int i = 0; i < prices.Count; i++)
                     {
-                        Console.WriteLine($"{j + 1}. {prices[j]:N0}");
+                        Console.WriteLine($"{i + 1}. {prices[i]:N0}");
                     }
 
                     Console.Write($"\nLượt {attempts + 1}/{MaxAttempts} - Nhập lựa chọn của bạn (1-{prices.Count}): ");
 
                     if (int.TryParse(Console.ReadLine(), out int choice) && choice >= 1 && choice <= prices.Count)
                     {
-                        if (prices[choice - 1] == Products[i].Price)
+                        if (prices[choice - 1] == product.Price)
                         {
                             Console.WriteLine("\nChính xác! +1 điểm");
                             score++;
@@ -172,7 +206,7 @@ namespace PriceGuessingGame.Models
                         }
                         else
                         {
-                            Console.WriteLine($"Sai rồi! {(attempts < MaxAttempts - 1 ? "Hãy thử lại!" : $"Giá đúng là: {Products[i].Price:N0} VND")}");
+                            Console.WriteLine($"Sai rồi! {(attempts < MaxAttempts - 1 ? "Hãy thử lại!" : $"Giá đúng là: {product.Price:N0} VND")}");
                         }
                     }
                     else
@@ -182,6 +216,13 @@ namespace PriceGuessingGame.Models
 
                     attempts++;
                 }
+
+                if (!correct)
+                {
+                    Console.WriteLine($"\nĐáp án đúng là: {product.Price:N0} VND");
+                    Console.WriteLine("Nhấn Enter để tiếp tục...");
+                    Console.ReadLine();
+                }
             }
 
             return score;
@@ -190,7 +231,6 @@ namespace PriceGuessingGame.Models
 }
 
 // Models/MediumLevel.cs
-
 namespace PriceGuessingGame.Models
 {
     public class MediumLevel : GameLevel
@@ -205,8 +245,7 @@ namespace PriceGuessingGame.Models
             }
 
             Products.Clear();
-            Random random = new Random();
-            List<int> selectedIndices = new List<int>();
+            var selectedIndices = new List<int>();
 
             while (Products.Count < NumberOfProducts)
             {
@@ -229,28 +268,31 @@ namespace PriceGuessingGame.Models
             Console.WriteLine($"Bạn có {MaxAttempts} lượt cho mỗi sản phẩm\n");
 
             int score = 0;
-            List<decimal> prices = Products.ConvertAll(p => p.Price);
 
-            for (int i = 0; i < Products.Count; i++)
+            foreach (var product in Products)
             {
                 int attempts = 0;
                 bool correct = false;
+                decimal minPrice = product.Price * 0.7m;
+                decimal maxPrice = product.Price * 1.3m;
+
+                var prices = GenerateRandomPrices(product.Price, minPrice, maxPrice, 5);
 
                 while (attempts < MaxAttempts && !correct)
                 {
-                    Console.WriteLine($"\nSản phẩm {i + 1}: {Products[i].Name}");
+                    Console.WriteLine($"\nSản phẩm: {product.Name}");
                     Console.WriteLine("Các mức giá (VND):");
 
-                    for (int j = 0; j < prices.Count; j++)
+                    for (int i = 0; i < prices.Count; i++)
                     {
-                        Console.WriteLine($"{j + 1}. {prices[j]:N0}");
+                        Console.WriteLine($"{i + 1}. {prices[i]:N0}");
                     }
 
                     Console.Write($"\nLượt {attempts + 1}/{MaxAttempts} - Nhập lựa chọn của bạn (1-{prices.Count}): ");
 
                     if (int.TryParse(Console.ReadLine(), out int choice) && choice >= 1 && choice <= prices.Count)
                     {
-                        if (prices[choice - 1] == Products[i].Price)
+                        if (prices[choice - 1] == product.Price)
                         {
                             Console.WriteLine("\nChính xác! +1 điểm");
                             score++;
@@ -258,7 +300,7 @@ namespace PriceGuessingGame.Models
                         }
                         else
                         {
-                            Console.WriteLine($"Sai rồi! {(attempts < MaxAttempts - 1 ? "Hãy thử lại!" : $"Giá đúng là: {Products[i].Price:N0} VND")}");
+                            Console.WriteLine($"Sai rồi! {(attempts < MaxAttempts - 1 ? "Hãy thử lại!" : $"Giá đúng là: {product.Price:N0} VND")}");
                         }
                     }
                     else
@@ -268,6 +310,13 @@ namespace PriceGuessingGame.Models
 
                     attempts++;
                 }
+
+                if (!correct)
+                {
+                    Console.WriteLine($"\nĐáp án đúng là: {product.Price:N0} VND");
+                    Console.WriteLine("Nhấn Enter để tiếp tục...");
+                    Console.ReadLine();
+                }
             }
 
             return score;
@@ -276,7 +325,6 @@ namespace PriceGuessingGame.Models
 }
 
 // Models/HardLevel.cs
-
 namespace PriceGuessingGame.Models
 {
     public class HardLevel : GameLevel
@@ -291,8 +339,7 @@ namespace PriceGuessingGame.Models
             }
 
             Products.Clear();
-            Random random = new Random();
-            List<int> selectedIndices = new List<int>();
+            var selectedIndices = new List<int>();
 
             while (Products.Count < NumberOfProducts)
             {
@@ -312,38 +359,49 @@ namespace PriceGuessingGame.Models
             Console.Clear();
             Console.WriteLine($"\n=== LEVEL {LevelName.ToUpper()} ===");
             Console.WriteLine($"Hãy chọn giá đúng cho {NumberOfProducts} sản phẩm sau:");
-            Console.WriteLine($"Bạn chỉ có {MaxAttempts} lượt cho mỗi sản phẩm\n");
+            Console.WriteLine($"CẢNH BÁO: Bạn chỉ có {MaxAttempts} lượt cho mỗi sản phẩm!");
+            Console.WriteLine("Hãy suy nghĩ kỹ trước khi trả lời.\n");
 
             int score = 0;
-            List<decimal> prices = Products.ConvertAll(p => p.Price);
 
-            for (int i = 0; i < Products.Count; i++)
+            foreach (var product in Products)
             {
-                Console.WriteLine($"\nSản phẩm {i + 1}: {Products[i].Name}");
+                decimal minPrice = product.Price * 0.7m;
+                decimal maxPrice = product.Price * 1.3m;
+
+                var prices = GenerateRandomPrices(product.Price, minPrice, maxPrice, 8);
+
+                Console.WriteLine($"\nSản phẩm: {product.Name}");
                 Console.WriteLine("Các mức giá (VND):");
 
-                for (int j = 0; j < prices.Count; j++)
+                for (int i = 0; i < prices.Count; i++)
                 {
-                    Console.WriteLine($"{j + 1}. {prices[j]:N0}");
+                    Console.WriteLine($"{i + 1}. {prices[i]:N0}");
                 }
 
-                Console.Write($"\nNhập lựa chọn của bạn (1-{prices.Count}): ");
+                Console.Write($"\nChỉ có 1 lượt - Nhập lựa chọn của bạn (1-{prices.Count}): ");
 
                 if (int.TryParse(Console.ReadLine(), out int choice) && choice >= 1 && choice <= prices.Count)
                 {
-                    if (prices[choice - 1] == Products[i].Price)
+                    if (prices[choice - 1] == product.Price)
                     {
                         Console.WriteLine("\nChính xác! +1 điểm");
                         score++;
                     }
                     else
                     {
-                        Console.WriteLine($"Sai rồi! Giá đúng là: {Products[i].Price:N0} VND");
+                        Console.WriteLine($"\nSai rồi! Giá đúng là: {product.Price:N0} VND");
                     }
                 }
                 else
                 {
                     Console.WriteLine("Lựa chọn không hợp lệ!");
+                }
+
+                if (Products.IndexOf(product) < Products.Count - 1)
+                {
+                    Console.WriteLine("\nNhấn Enter để tiếp tục...");
+                    Console.ReadLine();
                 }
             }
 
@@ -351,7 +409,6 @@ namespace PriceGuessingGame.Models
         }
     }
 }
-
 // Services/IDataService.cs
 
 namespace PriceGuessingGame.Services
@@ -441,17 +498,20 @@ namespace PriceGuessingGame.Services
 
 // Services/GameService.cs
 
+// Services/GameService.cs
 namespace PriceGuessingGame.Services
 {
     public class GameService : IGameService
     {
         private readonly IDataService _dataService;
         private readonly IScoreManager _scoreManager;
+        private readonly IPlayerManager _playerManager;
 
-        public GameService(IDataService dataService, IScoreManager scoreManager)
+        public GameService(IDataService dataService, IScoreManager scoreManager, IPlayerManager playerManager)
         {
             _dataService = dataService;
             _scoreManager = scoreManager;
+            _playerManager = playerManager;
         }
 
         public void PlayGame(GameLevel level)
@@ -461,7 +521,14 @@ namespace PriceGuessingGame.Services
                 List<Product> allProducts = _dataService.LoadProducts();
                 level.Initialize(allProducts);
                 int score = level.Play();
+
+                // Lưu điểm cao
                 _scoreManager.SaveScore(score);
+
+                // Cập nhật điểm cho người chơi
+                var currentPlayer = _playerManager.GetCurrentPlayer();
+                currentPlayer.AddScore(score);
+                _playerManager.SavePlayer(currentPlayer);
 
                 Console.WriteLine($"\nKết thúc level! Điểm của bạn: {score}");
                 Console.WriteLine("\nNhấn Enter để tiếp tục...");
@@ -721,7 +788,7 @@ namespace PriceGuessingGame.Managers
             IDataService dataService = new FileDataService();
             _scoreManager = new ScoreManager();
             _playerManager = new PlayerManager();
-            _gameService = new GameService(dataService, _scoreManager);
+            _gameService = new GameService(dataService, _scoreManager, _playerManager);
             _currentPlayer = _playerManager.GetCurrentPlayer();
         }
 
@@ -800,12 +867,15 @@ namespace PriceGuessingGame.Managers
 
         private void ShowPlayerStats()
         {
+            // Lấy thông tin người chơi mới nhất
+            Player currentPlayer = _playerManager.GetCurrentPlayer();
+
             Console.Clear();
             Console.WriteLine($"=== THỐNG KÊ NGƯỜI CHƠI ===\n");
-            Console.WriteLine($"Tên người chơi: {_currentPlayer.Name}");
-            Console.WriteLine($"Số lần chơi: {_currentPlayer.GamesPlayed}");
-            Console.WriteLine($"Tổng điểm: {_currentPlayer.TotalScore}");
-            Console.WriteLine($"Điểm trung bình: {_currentPlayer.AverageScore:F2}");
+            Console.WriteLine($"Tên người chơi: {currentPlayer.Name}");
+            Console.WriteLine($"Số lần chơi: {currentPlayer.GamesPlayed}");
+            Console.WriteLine($"Tổng điểm: {currentPlayer.TotalScore}");
+            Console.WriteLine($"Điểm trung bình: {currentPlayer.AverageScore:F2}");
 
             Console.WriteLine("\nNhấn Enter để tiếp tục...");
             Console.ReadLine();
